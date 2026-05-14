@@ -1,0 +1,229 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>つぶやきちゃん</title>
+    <meta name="theme-color" content="#f7f4ef" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="つぶやきちゃん" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <style>
+      html {
+        background: #f7f4ef;
+      }
+
+      body {
+        margin: 0;
+      }
+
+      @media (max-width: 820px) {
+        [data-fallback-shell] {
+          padding: calc(18px + env(safe-area-inset-top)) 14px calc(28px + env(safe-area-inset-bottom)) !important;
+        }
+
+        [data-fallback-tabs],
+        [data-fallback-posts] {
+          display: grid !important;
+          grid-template-columns: 1fr !important;
+        }
+
+        [data-fallback-tabs] button,
+        [data-fallback-action] {
+          width: 100% !important;
+          min-height: 48px !important;
+        }
+
+        textarea,
+        input {
+          font-size: 16px !important;
+        }
+      }
+
+      @media (max-width: 430px) {
+        [data-fallback-shell] {
+          padding: calc(16px + env(safe-area-inset-top)) 12px calc(24px + env(safe-area-inset-bottom)) !important;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root">
+      <main data-fallback-shell style="min-height:100vh;padding:32px 20px;background:#f7f4ef;color:#222;font-family:'Hiragino Sans','Yu Gothic','YuGothic','Noto Sans JP',sans-serif;">
+        <section style="max-width:920px;margin:0 auto;">
+          <p style="margin:0 0 8px;color:#4f766b;font-size:14px;font-weight:700;">Threads投稿生成アプリ / 生活者版 v3</p>
+          <div style="display:flex;align-items:center;gap:12px;margin:0 0 18px;">
+            <img src="./tsubuyakichan.png" alt="つぶやきちゃん" style="width:48px;height:48px;flex:0 0 48px;border:2px solid #fff;border-radius:50%;object-fit:cover;background:#fff;box-shadow:0 2px 10px rgba(34,34,34,.14);" />
+            <h1 style="margin:0;font-size:42px;line-height:1.2;">つぶやきちゃん</h1>
+          </div>
+          <p style="margin:0 0 18px;line-height:1.8;">
+            このアプリはPDF読み取りとnote URL取得を使うため、直接ファイルではなくlocalhostで開きます。
+          </p>
+          <a data-fallback-action href="http://127.0.0.1:5300/" style="display:inline-flex;align-items:center;justify-content:center;min-height:44px;padding:0 18px;border-radius:8px;background:#222;color:#fff;text-decoration:none;font-weight:700;">
+            localhostで開く
+          </a>
+          <nav data-fallback-tabs style="display:flex;gap:8px;margin-top:22px;padding:6px;border:1px solid #ddd5ca;border-radius:8px;background:#fff;">
+            <button id="fallbackNoteTab" type="button" style="min-height:44px;padding:0 14px;border:0;border-radius:8px;background:#222;color:#fff;font:inherit;font-weight:700;cursor:pointer;">note記事から作る</button>
+            <button id="fallbackDailyTab" type="button" style="min-height:44px;padding:0 14px;border:0;border-radius:8px;background:transparent;color:#222;font:inherit;font-weight:700;cursor:pointer;">今日のつぶやきから作る</button>
+          </nav>
+
+          <div id="fallbackNotePanel">
+          <section style="display:grid;gap:12px;margin-top:28px;">
+            <label for="fallbackNoteText" style="font-weight:700;">本文貼り付け欄</label>
+            <textarea id="fallbackNoteText" placeholder="サーバーが起動していない時は、ここに本文を貼って簡易生成できます。" style="width:100%;min-height:220px;padding:14px;border:1px solid #cfc7bc;border-radius:8px;color:#222;background:#fff;line-height:1.7;resize:vertical;font:inherit;"></textarea>
+            <button data-fallback-action id="fallbackGenerate" type="button" style="width:220px;min-height:44px;border:0;border-radius:8px;color:#fff;background:#4f766b;cursor:pointer;font:inherit;font-weight:700;">生活感強めで生成</button>
+          </section>
+          <section data-fallback-posts style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:20px;">
+            <article style="min-height:190px;padding:16px;border:1px solid #ddd5ca;border-radius:8px;background:#fff;">
+              <h2 style="margin:0 0 12px;font-size:18px;">① Threads単体投稿</h2>
+              <p id="fallbackEmpathy" style="margin:0;white-space:pre-wrap;line-height:1.8;">夜11時、机ぐちゃぐちゃのまま座ってる。
+
+TODOは終わってない。
+ノートを開いただけ。
+もう眠い。</p>
+            </article>
+            <article style="min-height:190px;padding:16px;border:1px solid #ddd5ca;border-radius:8px;background:#fff;">
+              <h2 style="margin:0 0 12px;font-size:18px;">② Threads単体投稿</h2>
+              <p id="fallbackHonest" style="margin:0;white-space:pre-wrap;line-height:1.8;">ちゃんとした話にする元気がない。
+
+眠いし、疲れてる。
+SNS見てた。
+コップもまだ流しにある。</p>
+            </article>
+            <article style="min-height:190px;padding:16px;border:1px solid #ddd5ca;border-radius:8px;background:#fff;">
+              <h2 style="margin:0 0 12px;font-size:18px;">③ note紹介投稿</h2>
+              <p id="fallbackAction" style="margin:0;white-space:pre-wrap;line-height:1.8;">4年半前は、異次元の話だと思ってた。
+
+今は夜11時、机ぐちゃぐちゃのまま本文を書いてる。
+点が線になる前の、まだ途中。
+
+このあたり、noteに残しました。</p>
+            </article>
+          </section>
+          </div>
+
+          <div id="fallbackDailyPanel" style="display:none;">
+          <section style="display:grid;gap:12px;margin-top:28px;">
+            <label for="fallbackMemoText" style="font-weight:700;">今日のつぶやきメモ入力欄</label>
+            <textarea id="fallbackMemoText" placeholder="例: 朝から机ぐちゃぐちゃ。昼にTCP/IPで止まった。夜は洗い物残ってるけど15分講義だけ聞いた。" style="width:100%;min-height:220px;padding:14px;border:1px solid #cfc7bc;border-radius:8px;color:#222;background:#fff;line-height:1.7;resize:vertical;font:inherit;"></textarea>
+            <button data-fallback-action id="fallbackDailyGenerate" type="button" style="width:220px;min-height:44px;border:0;border-radius:8px;color:#fff;background:#4f766b;cursor:pointer;font:inherit;font-weight:700;">朝昼晩投稿を生成</button>
+          </section>
+          <section data-fallback-posts style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:20px;">
+            <article style="min-height:190px;padding:16px;border:1px solid #ddd5ca;border-radius:8px;background:#fff;">
+              <h2 style="margin:0 0 12px;font-size:18px;">① 朝の投稿</h2>
+              <p id="fallbackMorning" style="margin:0;white-space:pre-wrap;line-height:1.8;">朝から机の上が散らかってる。
+
+でも、パソコンは開いた。
+今日もここから。</p>
+            </article>
+            <article style="min-height:190px;padding:16px;border:1px solid #ddd5ca;border-radius:8px;background:#fff;">
+              <h2 style="margin:0 0 12px;font-size:18px;">② 昼の投稿</h2>
+              <p id="fallbackNoon" style="margin:0;white-space:pre-wrap;line-height:1.8;">集中5分で切れた。
+
+調べもののつもりが、SNS見てた。
+46歳、今日も途中で脱線してる。</p>
+            </article>
+            <article style="min-height:190px;padding:16px;border:1px solid #ddd5ca;border-radius:8px;background:#fff;">
+              <h2 style="margin:0 0 12px;font-size:18px;">③ 夜の投稿</h2>
+              <p id="fallbackNight" style="margin:0;white-space:pre-wrap;line-height:1.8;">夜11時。
+洗い物もTODOも残ってる。
+
+でも今日は、ノートだけは開いた。
+止まってはいない、たぶん。</p>
+            </article>
+          </section>
+          </div>
+        </section>
+      </main>
+    </div>
+    <script>
+      var notePanel = document.getElementById('fallbackNotePanel');
+      var dailyPanel = document.getElementById('fallbackDailyPanel');
+      var noteTab = document.getElementById('fallbackNoteTab');
+      var dailyTab = document.getElementById('fallbackDailyTab');
+      function switchFallbackTab(tab) {
+        var daily = tab === 'daily';
+        notePanel.style.display = daily ? 'none' : 'block';
+        dailyPanel.style.display = daily ? 'block' : 'none';
+        noteTab.style.background = daily ? 'transparent' : '#222';
+        noteTab.style.color = daily ? '#222' : '#fff';
+        dailyTab.style.background = daily ? '#222' : 'transparent';
+        dailyTab.style.color = daily ? '#fff' : '#222';
+      }
+      noteTab.addEventListener('click', function () { switchFallbackTab('note'); });
+      dailyTab.addEventListener('click', function () { switchFallbackTab('daily'); });
+
+      document.getElementById('fallbackGenerate').addEventListener('click', function () {
+        var text = document.getElementById('fallbackNoteText').value.trim();
+        var hasAi = /AI|ChatGPT|チャットGPT/.test(text);
+        var hasDesk = /押入れデスク|散らかった机|延長コード|机ぐちゃぐちゃ/.test(text);
+        var hasNight = /夜|11時|23時|眠い|娘が寝た後|洗い物/.test(text);
+        var hasLearning = /学び直|15分講義|英語日記|小6算数|単語帳/.test(text);
+        var hasSns = /SNS|集中5分|ノート開いただけ|今日は無理/.test(text);
+        var salaWords = ['異次元の話', '点が線になる', 'とっ散らかる', '予言', '人生再起動', '未来の自分への証明書', '学ぶノマド', '押入れデスク'].filter(function (word) {
+          return text.indexOf(word) !== -1;
+        });
+        var salaWord = salaWords[0] || (hasLearning ? 'まだ途中。というか、今日はノート開いただけ' : 'ちゃんとした話にする元気がない');
+        var scene = hasDesk
+          ? '机ぐちゃぐちゃのまま、ノートだけ開いた'
+          : hasNight
+            ? '洗い物を終えて、夜11時にスマホを開いた'
+            : hasAi
+              ? '夜中にChatGPTを開いたまま、しばらく指が止まった'
+              : hasSns
+                ? '集中5分で切れて、またSNSを見てた'
+                : '散らかった机の端に、ノートだけ広げた';
+        var step = hasAi
+          ? 'AIに一言だけ聞けた'
+          : hasSns
+            ? 'SNSを閉じた'
+          : hasLearning
+            ? 'ノートを開いただけ'
+            : hasDesk
+              ? '押入れデスクを少し片付けた'
+              : 'TODOをひとつだけ消した';
+
+        document.getElementById('fallbackEmpathy').textContent =
+          '夜11時、' + scene + '。\n\n' + salaWord + '。\n\nTODOは終わってない。\n' + step + '。\nもう眠い。';
+        document.getElementById('fallbackHonest').textContent =
+          scene + '。\n\n' + salaWord + '。\n眠いし、疲れてる。\n' + step + '。\nコップもまだ流しにある。';
+        document.getElementById('fallbackAction').textContent =
+          scene + '。\n\n昔は、異次元の話だと思ってた。\nでも今は、' + salaWord + 'が少しだけ現実の言葉になってきた。\n\n生活は普通に散らかってる。\nでも、その夜のことをnoteに書きました。';
+      });
+      document.getElementById('fallbackDailyGenerate').addEventListener('click', function () {
+        var memo = document.getElementById('fallbackMemoText').value.trim();
+        var clean = memo.replace(/\s+/g, ' ').trim();
+        var parts = clean.split(/[。！？!?、,]/).map(function (part) { return part.trim(); }).filter(Boolean);
+        var first = parts[0] || clean || '今日のメモがまだ短い';
+        var second = parts[1] || first;
+        var hasEvening = /夕方|6時|18時|夜|いつの間にか|気づいたら/.test(clean);
+        var hasTimeMelt = /時間が溶け|時間溶け|夢中|没頭/.test(clean);
+        var hasAiWorker = /AI社員/.test(clean);
+        var hasProject = /プロジェクト|企画|作業|仕事/.test(clean);
+        var hasFunFear = /楽しい|怖い|こわい|仕事なのか|遊びなのか/.test(clean);
+        var themeLine = hasAiWorker && hasTimeMelt
+          ? 'AI社員とプロジェクトを動かしていたら、時間が溶けてた'
+          : hasTimeMelt
+            ? second + '。時間が溶けてた'
+            : hasProject
+              ? first + '。' + second
+              : clean;
+        var timeLine = hasEvening ? '気づいたら夕方6時だった' : first;
+        var feelingLine = hasFunFear
+          ? '楽しいけど、ちょっと怖い'
+          : hasTimeMelt
+            ? '仕事なのか遊びなのか、もうわからない'
+            : 'ちゃんとしてるのかは、よくわからない';
+        document.getElementById('fallbackMorning').textContent =
+          '昨日、' + themeLine + '。\n\n' + timeLine + '。\n\n今日もやりすぎ注意で、\nでも少しだけ進めたい。';
+        document.getElementById('fallbackNoon').textContent =
+          themeLine + '。\n\n' + timeLine + '。\n\n' + feelingLine + '。笑';
+        document.getElementById('fallbackNight').textContent =
+          timeLine + '。\n\n' + themeLine + '。\n\n疲れたけど、\nちょっと楽しかった。\n\nこういう夢中になれる時間があるなら、\nまだ人生おもしろいかもしれない。';
+      });
+    </script>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>
