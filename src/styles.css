@@ -21,6 +21,17 @@ textarea {
   font: inherit;
 }
 
+select {
+  min-height: 48px;
+  padding: 8px 10px;
+  border: 1px solid #cfc7bc;
+  border-radius: 8px;
+  color: #222222;
+  background: #ffffff;
+  font: inherit;
+  font-size: 16px;
+}
+
 button,
 a,
 input[type="file"] {
@@ -78,6 +89,13 @@ h1 {
   margin-bottom: 20px;
 }
 
+.editorControls {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: end;
+}
+
 .tabs {
   display: flex;
   flex-wrap: wrap;
@@ -115,6 +133,10 @@ h1 {
   border: 1px solid #ddd5ca;
   border-radius: 8px;
   background: #ffffff;
+}
+
+.fieldGroup.compact {
+  padding: 12px;
 }
 
 label,
@@ -207,6 +229,13 @@ button {
   width: 220px;
 }
 
+.subButton {
+  min-height: 52px;
+  padding: 0 16px;
+  color: #ffffff;
+  background: #4f766b;
+}
+
 .message {
   margin: 0;
   padding: 11px 12px;
@@ -272,6 +301,31 @@ h2 {
   line-height: 1.8;
 }
 
+.postMeta {
+  display: grid;
+  gap: 10px;
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid #eee3d8;
+}
+
+.postMeta div {
+  display: grid;
+  gap: 4px;
+}
+
+.postMeta span {
+  color: #4f766b;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.postMeta p {
+  color: #3b3631;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
 .shortBox {
   margin-top: 14px;
   padding-top: 14px;
@@ -298,6 +352,7 @@ h3 {
     flex-basis: 44px;
   }
 
+  .editorControls,
   .toolPanel,
   .posts {
     grid-template-columns: 1fr;
@@ -321,6 +376,10 @@ h3 {
   }
 
   .generateButton {
+    width: 100%;
+  }
+
+  .subButton {
     width: 100%;
   }
 

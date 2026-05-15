@@ -2,7 +2,7 @@ import { spawn } from 'node:child_process';
 
 const processes = [
   spawn('node', ['server.js'], { stdio: 'inherit' }),
-  spawn('./node_modules/.bin/vite', ['--host', '0.0.0.0', '--port', '5300', '--strictPort'], { stdio: 'inherit' }),
+  spawn('./node_modules/.bin/vite', ['--host', '0.0.0.0', '--port', '5400', '--strictPort'], { stdio: 'inherit' }),
 ];
 
 function stopAll() {

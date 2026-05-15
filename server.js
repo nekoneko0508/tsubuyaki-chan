@@ -3,7 +3,7 @@ import { readFile } from 'node:fs/promises';
 import { existsSync, readFileSync } from 'node:fs';
 import { extname, join, normalize, resolve } from 'node:path';
 
-const port = Number(process.env.PORT || 5301);
+const port = Number(process.env.PORT || 5401);
 const host = process.env.HOST || '0.0.0.0';
 const root = resolve(process.cwd(), 'dist');
 
@@ -175,11 +175,27 @@ async function handleNoteRequest(req, res) {
   }
 }
 
-function buildPrompt(mode, text) {
+function buildPrompt(mode, text, options = {}) {
+  const postMode = options.postMode || 'empathy';
+  const salaStyle = options.salaStyle || 'natural';
+  const modeLabel = {
+    empathy: '共感重視',
+    save: '保存重視',
+    note: 'note誘導重視',
+  }[postMode] || '共感重視';
+  const styleLabel = {
+    natural: 'ナチュラル',
+    heat: '熱量強め',
+    learning: '学び重視',
+  }[salaStyle] || 'ナチュラル';
+
   if (mode === 'daily') {
     return `あなたは「つぶやきちゃん」、salaブランド専属のThreads編集AIです。
 
 入力された「今日のつぶやきメモ」を主役にして、朝・昼・夜のThreads投稿を各1案作ってください。
+
+編集モード: ${modeLabel}
+salaらしさ強度: ${styleLabel}
 
 絶対ルール:
 - 入力メモの主題を必ず入れる
@@ -188,13 +204,15 @@ function buildPrompt(mode, text) {
 - テンプレートにしない
 - 生活者感、途中感、少し疲れている感じを残す
 - 成功者っぽくしない
+- ただの日記で終わらせず、共感・気づき・小さな行動提案のどれかを入れる
+- コメントしたくなる問いを入れる
 
 出力はJSONだけ:
 {
   "posts": [
-    {"id":"morning","title":"① 朝の投稿","text":"...","shortText":"..."},
-    {"id":"noon","title":"② 昼の投稿","text":"...","shortText":"..."},
-    {"id":"night","title":"③ 夜の投稿","text":"...","shortText":"..."}
+    {"id":"morning","title":"① 朝の投稿","text":"...","shortText":"...","postTitle":"...","hook":"...","commentPrompt":"...","noteLead":"...","hashtags":["#..."],"qualityCheck":"..."},
+    {"id":"noon","title":"② 昼の投稿","text":"...","shortText":"...","postTitle":"...","hook":"...","commentPrompt":"...","noteLead":"...","hashtags":["#..."],"qualityCheck":"..."},
+    {"id":"night","title":"③ 夜の投稿","text":"...","shortText":"...","postTitle":"...","hook":"...","commentPrompt":"...","noteLead":"...","hashtags":["#..."],"qualityCheck":"..."}
   ]
 }
 
@@ -204,25 +222,52 @@ ${text}`;
 
   return `あなたは「つぶやきちゃん」、salaブランド専属のThreads編集AIです。
 
-note本文から情報要約ではなく、感情・生活感・途中の温度を抜き出してThreads投稿を作ってください。
+note本文から情報要約ではなく、「読者が知りたかった」と思うThreads投稿に編集してください。
+
+編集モード: ${modeLabel}
+salaらしさ強度: ${styleLabel}
 
 ブランド:
+- salaは40代から学び直しをしている女性起業家
+- 将来的にKindle出版へつながる発信を育てる
+- テーマはAI初心者、AI社員育成、学び直し、ノマドワーク、地方企業支援、DX、食品品質管理、起業、失敗談、チャレンジ過程
 - salaは「未完成のまま進んでいる人」
 - 読者に与える感情は勇気より安心
 - 綺麗な自己啓発、宣伝、成功者感は禁止
 - 生活感、夜の空気、小さな前進を残す
 
+必須構成:
+1. 共感フック
+2. リアル体験
+3. 気づき
+4. 学び
+5. 行動提案
+6. コメント誘導
+
+投稿には必ず以下のどれかを入れる:
+- 読者が共感できる悩み
+- 初心者でもできそう感
+- 気づき
+- 学び
+- 行動提案
+- コメントしたくなる問いかけ
+
+note導線:
+- 「詳しくはnoteへ」「読んでください」は禁止
+- “続きを読みたくなる余白”を残す
+- 例: この格闘記録はnoteにまとめます / 初心者でもできた手順をnoteに残します
+
 出力:
-- Threads単体投稿を2案
-- note紹介投稿を1案
+- ${modeLabel}としてThreads投稿を3案
+- 3案目はnote誘導を強める
 - note紹介投稿も「note更新しました」は禁止
 
 出力はJSONだけ:
 {
   "posts": [
-    {"id":"singleA","title":"① Threads単体投稿","text":"..."},
-    {"id":"singleB","title":"② Threads単体投稿","text":"..."},
-    {"id":"noteIntro","title":"③ note紹介投稿","text":"..."}
+    {"id":"singleA","title":"① 共感重視投稿","text":"...","postTitle":"...","hook":"...","commentPrompt":"...","noteLead":"...","hashtags":["#..."],"qualityCheck":"..."},
+    {"id":"singleB","title":"② 学び・保存投稿","text":"...","postTitle":"...","hook":"...","commentPrompt":"...","noteLead":"...","hashtags":["#..."],"qualityCheck":"..."},
+    {"id":"noteIntro","title":"③ note誘導重視投稿","text":"...","postTitle":"...","hook":"...","commentPrompt":"...","noteLead":"...","hashtags":["#..."],"qualityCheck":"..."}
   ]
 }
 
@@ -238,6 +283,12 @@ function normalizePosts(value, mode) {
     title: post.title || (mode === 'daily' ? ['① 朝の投稿', '② 昼の投稿', '③ 夜の投稿'][index] : ['① Threads単体投稿', '② Threads単体投稿', '③ note紹介投稿'][index]),
     text: String(post.text || '').trim(),
     shortText: post.shortText ? String(post.shortText).trim() : undefined,
+    postTitle: post.postTitle ? String(post.postTitle).trim() : undefined,
+    hook: post.hook ? String(post.hook).trim() : undefined,
+    commentPrompt: post.commentPrompt ? String(post.commentPrompt).trim() : undefined,
+    noteLead: post.noteLead ? String(post.noteLead).trim() : undefined,
+    hashtags: Array.isArray(post.hashtags) ? post.hashtags.map((tag) => String(tag).trim()).filter(Boolean).slice(0, 6) : undefined,
+    qualityCheck: post.qualityCheck ? String(post.qualityCheck).trim() : undefined,
   }));
 
   if (posts.length !== 3 || posts.some((post) => !post.text)) return null;
@@ -246,7 +297,7 @@ function normalizePosts(value, mode) {
 
 async function handleGenerateRequest(req, res) {
   try {
-    const { mode = 'note', text = '' } = await readJsonBody(req);
+    const { mode = 'note', text = '', options = {} } = await readJsonBody(req);
     const cleanInput = String(text).trim();
 
     if (!cleanInput) {
@@ -267,7 +318,7 @@ async function handleGenerateRequest(req, res) {
       },
       body: JSON.stringify({
         model: process.env.OPENAI_MODEL || 'gpt-4.1-mini',
-        input: buildPrompt(mode, cleanInput.slice(0, 24000)),
+        input: buildPrompt(mode, cleanInput.slice(0, 24000), options),
         text: { format: { type: 'json_object' } },
       }),
     });

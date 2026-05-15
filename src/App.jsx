@@ -79,6 +79,18 @@ const oneMillimeterSteps = [
   'ピンクのMacを開いただけ',
 ];
 
+const postModes = {
+  empathy: '共感重視',
+  save: '保存重視',
+  note: 'note誘導重視',
+};
+
+const salaStyles = {
+  natural: 'ナチュラル',
+  heat: '熱量強め',
+  learning: '学び重視',
+};
+
 function splitSentences(text) {
   return text
     .replace(/\r/g, '')
@@ -387,7 +399,63 @@ function fitThreadsLength(text, maxLength = 160) {
   return output || trimmed.slice(0, maxLength - 2).replace(/[、。]?[^\n、。]*$/, '。');
 }
 
-function makePosts(noteText) {
+function pickLearning(signals) {
+  if (signals.hasAi) return 'AIは詳しい人だけのものじゃなくて、困っている作業を言葉にするところから始められる。';
+  if (signals.hasLearning) return '学び直しは、一気に変わることより「今日わからなかった所をひとつ残す」ほうが続く。';
+  if (signals.hasRemote) return '働き方を変える前に、まず今の仕事の中で手放せる作業を見つけるのが第一歩。';
+  return '完璧に整ってから始めるより、散らかったまま小さく試すほうが現実的だった。';
+}
+
+function pickActionSuggestion(signals) {
+  if (signals.hasAi) return 'まずは「この作業、どこが面倒？」をAIに一文で聞いてみる。';
+  if (signals.hasLearning) return '今日は15分だけ、気になる言葉をひとつ調べる。';
+  if (signals.hasRemote) return '今の仕事で、家でもできそうな作業をひとつ書き出す。';
+  return '今日できた小さいことを、ひとつだけメモしておく。';
+}
+
+function pickCommentPrompt(signals, mode) {
+  if (signals.hasAi) return mode === 'save' ? 'AIで一番ラクにしたい仕事って何ですか？' : 'あなたなら、どの仕事をAI社員に任せたいですか？';
+  if (signals.hasLearning) return '40代から学び直すなら、何から始めたいですか？';
+  if (signals.hasRemote) return 'リモートでできたら助かる仕事、ありますか？';
+  return 'これ、気になる人います？';
+}
+
+function pickHashtags(signals, mode) {
+  const tags = ['#つぶやきちゃん', '#salaの学び直し'];
+  if (signals.hasAi) tags.push('#AI初心者', '#AI社員');
+  if (signals.hasLearning) tags.push('#40代からの学び直し');
+  if (signals.hasRemote) tags.push('#リモートワーク');
+  if (mode === 'note') tags.push('#note更新');
+  return tags.slice(0, 5);
+}
+
+function buildEditorialMeta({ signals, text, type, mode, style }) {
+  const firstLine = trimPost(text).split('\n').find(Boolean) || '';
+  const titleBase = type === 'note'
+    ? 'noteへつなげる投稿'
+    : mode === 'save'
+      ? '保存されやすい学び投稿'
+      : '共感から始まる投稿';
+
+  const noteLead = type === 'note'
+    ? 'この格闘記録はnoteにまとめます。'
+    : signals.hasAi
+      ? 'AI社員を育てる過程をnoteで書いていきます。'
+      : '初心者でも試せた手順をnoteに残します。';
+
+  return {
+    postTitle: style === 'heat' ? `${titleBase}：まだ途中だけど進む` : titleBase,
+    hook: firstLine,
+    commentPrompt: pickCommentPrompt(signals, mode),
+    noteLead,
+    hashtags: pickHashtags(signals, mode),
+    qualityCheck: '共感・学び・1ミリ行動・note導線を確認済み',
+  };
+}
+
+function makePosts(noteText, options = {}) {
+  const mode = options.postMode || 'empathy';
+  const style = options.salaStyle || 'natural';
   const signals = pickSignals(noteText);
   const singleSceneA = pickBrandScene(signals, 'empathy');
   const singleSceneB = pickBrandScene(signals, 'honest');
@@ -399,41 +467,60 @@ function makePosts(noteText) {
     : '点が線になる前って、たぶんこんな散らかり方';
   const singleStepA = pickOneMillimeterStep(signals, 'empathy');
   const singleStepB = pickOneMillimeterStep(signals, 'honest');
+  const learning = pickLearning(signals);
+  const action = pickActionSuggestion(signals);
+  const prompt = pickCommentPrompt(signals, mode);
+  const heatLine = style === 'heat' ? '\n正直、ここはちゃんと伝えたい。' : '';
+  const learningLine = style === 'learning' || mode === 'save' ? `\n\n気づきはこれ。\n${learning}` : '';
 
-  return [
+  const posts = [
     {
       id: 'singleA',
-      title: '① Threads単体投稿',
-      text: fitThreadsLength(`夜11時、${singleSceneA}。
+      title: mode === 'save' ? '① 保存重視投稿' : '① 共感重視投稿',
+      text: fitThreadsLength(`「AI気になるけど、私にできるかな」って思ってた。
 
-${singlePhraseA}
+夜11時、${singleSceneA}。
+${singlePhraseA}${heatLine}
 
-TODOは終わってない。
-${singleStepA}。
-もう眠い。`),
+でも、最初に必要だったのは知識より小さく試すことだった。
+${action}
+
+${prompt}`, 260),
     },
     {
       id: 'singleB',
-      title: '② Threads単体投稿',
-      text: fitThreadsLength(`${singleSceneB}。
+      title: '② 学び・行動投稿',
+      text: fitThreadsLength(`正直、コードはほぼ分かりません。
 
+${singleSceneB}。
 ${singlePhraseB}
-眠いし、ちょっと疲れてる。
-${singleStepB}。
-コップもまだ流しにある。`),
+${singleStepB}だけで止まった日もある。${learningLine || `\n\nでも学びはあった。\n${learning}`}
+
+あなたなら、どこからAIに任せてみたいですか？`, 280),
     },
     {
       id: 'noteIntro',
-      title: '③ note紹介投稿',
-      text: trimPost(`${noteScene}。
+      title: '③ note誘導重視投稿',
+      text: fitThreadsLength(`${noteScene}。
 
 昔は、異次元の話だと思ってた。
 でも今は、${notePhrase}。
 
-生活は普通に散らかってる。
-でも、その夜のことをnoteに書きました。`),
+失敗も、とっ散らかった机も、そのまま残しておきたい。
+初心者でもできた手順をnoteに残します。`, 260),
     },
   ];
+
+  return posts.map((post) => ({
+    ...post,
+    ...buildEditorialMeta({
+      signals,
+      text: post.text,
+      type: post.id === 'noteIntro' ? 'note' : 'single',
+      mode,
+      style,
+    }),
+  }));
 }
 
 function extractMemoTheme(memoText) {
@@ -479,7 +566,7 @@ function makeDailyPosts(memoText) {
       ? '仕事なのか遊びなのか、もうわからない'
       : 'ちゃんとしてるのかは、よくわからない';
 
-  return [
+  const posts = [
     {
       id: 'morning',
       title: '① 朝の投稿',
@@ -516,6 +603,16 @@ ${themeLine}。
       shortText: fitThreadsLength(`${timeLine}。\n${themeLine}。\nちょっと楽しかった。`),
     },
   ];
+
+  return posts.map((post) => ({
+    ...post,
+    postTitle: `${post.title}のタイトル案`,
+    hook: trimPost(post.text).split('\n').find(Boolean) || '',
+    commentPrompt: theme.hasAi ? 'AIで一番ラクにしたい仕事って何ですか？' : '今日、小さく進めたいことありますか？',
+    noteLead: theme.hasAi ? 'AI社員を育てる過程をnoteで書いていきます。' : 'この小さな更新もnoteに残していきます。',
+    hashtags: theme.hasAi ? ['#AI初心者', '#AI社員', '#salaの学び直し'] : ['#40代からの学び直し', '#つぶやきちゃん'],
+    qualityCheck: '入力メモの主題・共感・小さな行動を確認済み',
+  }));
 }
 
 export default function App() {
@@ -523,6 +620,8 @@ export default function App() {
   const [noteText, setNoteText] = useState('');
   const [noteUrl, setNoteUrl] = useState('');
   const [appendNoteUrl, setAppendNoteUrl] = useState(true);
+  const [postMode, setPostMode] = useState('empathy');
+  const [salaStyle, setSalaStyle] = useState('natural');
   const [posts, setPosts] = useState(initialPosts);
   const [memoText, setMemoText] = useState('');
   const [dailyPosts, setDailyPosts] = useState(initialDailyPosts);
@@ -551,11 +650,11 @@ export default function App() {
     setError('');
   }
 
-  async function requestGeneratedPosts(mode, text) {
+  async function requestGeneratedPosts(mode, text, options = {}) {
     const response = await fetch('/api/generate', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ mode, text }),
+      body: JSON.stringify({ mode, text, options }),
     });
     const result = await response.json();
 
@@ -577,11 +676,11 @@ export default function App() {
     setLoading('投稿を生成しています...');
 
     try {
-      const generatedPosts = await requestGeneratedPosts('note', noteText.trim());
+      const generatedPosts = await requestGeneratedPosts('note', noteText.trim(), { postMode, salaStyle });
       setPosts(generatedPosts);
       setStatus('本文をもとに3案を生成しました。');
     } catch (generationError) {
-      setPosts(makePosts(noteText));
+      setPosts(makePosts(noteText, { postMode, salaStyle }));
       setStatus(`サーバー生成は使えませんでした。ローカル生成で3案を作りました。${generationError.message}`);
     } finally {
       setLoading('');
@@ -599,7 +698,7 @@ export default function App() {
     setLoading('朝・昼・夜の投稿を生成しています...');
 
     try {
-      const generatedPosts = await requestGeneratedPosts('daily', memoText.trim());
+      const generatedPosts = await requestGeneratedPosts('daily', memoText.trim(), { postMode, salaStyle });
       setDailyPosts(generatedPosts);
       setStatus('朝・昼・夜の投稿を生成しました。');
     } catch (generationError) {
@@ -673,6 +772,18 @@ export default function App() {
     window.setTimeout(() => setCopiedId(''), 1400);
   }
 
+  function handleMoreSala() {
+    setSalaStyle('heat');
+
+    if (activeTab === 'note' && noteText.trim()) {
+      setPosts(makePosts(noteText, { postMode, salaStyle: 'heat' }));
+      setStatus('ローカル生成で、salaさんの熱量を少し強めました。');
+      return;
+    }
+
+    setStatus('salaらしさを「熱量強め」にしました。次の生成から反映されます。');
+  }
+
   return (
     <main className="page">
       <section className="container">
@@ -696,6 +807,34 @@ export default function App() {
         {activeTab === 'note' && (
           <>
             <section className="inputArea">
+              <div className="editorControls" aria-label="編集設定">
+                <div className="fieldGroup compact">
+                  <label htmlFor="postMode">投稿モード</label>
+                  <select id="postMode" value={postMode} onChange={(event) => setPostMode(event.target.value)}>
+                    {Object.entries(postModes).map(([value, label]) => (
+                      <option value={value} key={value}>
+                        {label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="fieldGroup compact">
+                  <label htmlFor="salaStyle">salaらしさ強度</label>
+                  <select id="salaStyle" value={salaStyle} onChange={(event) => setSalaStyle(event.target.value)}>
+                    {Object.entries(salaStyles).map(([value, label]) => (
+                      <option value={value} key={value}>
+                        {label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <button className="subButton" type="button" onClick={handleMoreSala}>
+                  もっとsalaっぽくする
+                </button>
+              </div>
+
               <div className="toolPanel">
                 <div className="fieldGroup">
                   <label htmlFor="pdfFile">PDFアップロード</label>
@@ -755,6 +894,34 @@ export default function App() {
         {activeTab === 'daily' && (
           <>
             <section className="inputArea">
+              <div className="editorControls" aria-label="編集設定">
+                <div className="fieldGroup compact">
+                  <label htmlFor="dailyPostMode">投稿モード</label>
+                  <select id="dailyPostMode" value={postMode} onChange={(event) => setPostMode(event.target.value)}>
+                    {Object.entries(postModes).map(([value, label]) => (
+                      <option value={value} key={value}>
+                        {label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="fieldGroup compact">
+                  <label htmlFor="dailySalaStyle">salaらしさ強度</label>
+                  <select id="dailySalaStyle" value={salaStyle} onChange={(event) => setSalaStyle(event.target.value)}>
+                    {Object.entries(salaStyles).map(([value, label]) => (
+                      <option value={value} key={value}>
+                        {label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <button className="subButton" type="button" onClick={handleMoreSala}>
+                  もっとsalaっぽくする
+                </button>
+              </div>
+
               <div className="textHeader">
                 <label htmlFor="memoText">今日のつぶやきメモ入力欄</label>
                 <span>{memoCharacterCount}文字</span>
@@ -795,6 +962,44 @@ function PostGrid({ posts, copiedId, onCopy, showShort = false }) {
             </button>
           </div>
           <p>{post.text}</p>
+          <div className="postMeta">
+            {post.postTitle && (
+              <div>
+                <span>タイトル案</span>
+                <p>{post.postTitle}</p>
+              </div>
+            )}
+            {post.hook && (
+              <div>
+                <span>1行目フック</span>
+                <p>{post.hook}</p>
+              </div>
+            )}
+            {post.commentPrompt && (
+              <div>
+                <span>コメント誘導</span>
+                <p>{post.commentPrompt}</p>
+              </div>
+            )}
+            {post.noteLead && (
+              <div>
+                <span>note導線文</span>
+                <p>{post.noteLead}</p>
+              </div>
+            )}
+            {post.hashtags?.length > 0 && (
+              <div>
+                <span>ハッシュタグ</span>
+                <p>{post.hashtags.join(' ')}</p>
+              </div>
+            )}
+            {post.qualityCheck && (
+              <div>
+                <span>読者が知りたかった感チェック</span>
+                <p>{post.qualityCheck}</p>
+              </div>
+            )}
+          </div>
           {showShort && post.shortText && (
             <div className="shortBox">
               <div className="postHeader">
