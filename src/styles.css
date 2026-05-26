@@ -301,6 +301,22 @@ h2 {
   line-height: 1.8;
 }
 
+.modeBadge {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0 0 12px;
+}
+
+.modeBadge span {
+  padding: 5px 8px;
+  border-radius: 999px;
+  color: #315d52;
+  background: #e8f1ed;
+  font-size: 12px;
+  font-weight: 700;
+}
+
 .postMeta {
   display: grid;
   gap: 10px;

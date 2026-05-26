@@ -3,7 +3,7 @@ import { readFile } from 'node:fs/promises';
 import { existsSync, readFileSync } from 'node:fs';
 import { extname, join, normalize, resolve } from 'node:path';
 
-const port = Number(process.env.PORT || 5401);
+const port = Number(process.env.PORT || 5501);
 const host = process.env.HOST || '0.0.0.0';
 const root = resolve(process.cwd(), 'dist');
 
@@ -192,10 +192,43 @@ function buildPrompt(mode, text, options = {}) {
   if (mode === 'daily') {
     return `あなたは「つぶやきちゃん」、salaブランド専属のThreads編集AIです。
 
-入力された「今日のつぶやきメモ」を主役にして、朝・昼・夜のThreads投稿を各1案作ってください。
+目的は、note読者を増やし、最終的にKindle出版につなげることです。
+単なる投稿生成AIではなく、編集者として思考してから投稿を作ってください。
+
+投稿を作る前に、内部で必ず考えること:
+1. この投稿の主題は何か
+2. 読者はどこで共感するか
+3. 読者は何を知りたかったと思うか
+4. どこに感情の余白があるか
+5. noteを読みたくなる導線はあるか
+6. salaらしさは出ているか
+7. 日記で終わっていないか
+
+入力された「今日のつぶやきメモ」を主役にして、朝・昼・夜のThreads投稿を完全に別視点で各1案作ってください。
 
 編集モード: ${modeLabel}
 salaらしさ強度: ${styleLabel}
+
+salaブランド:
+- テーマは「46歳、人生を更新中。」
+- 40代女性、ノマドワーカー、学び直し、サイバー大学、AI格闘、娘との日常、海外生活、起業4年目
+- 泥臭い挑戦、完璧じゃないリアル、少し不器用、でも前向き
+- キラキラ成功ではなく、リアルな更新感を大切にする
+
+朝投稿:
+- 読者心理は不安、焦り、仕事行きたくない、少し前向きになりたい
+- 軽さ、希望、小さな前進、今日が少しラクになる感覚を入れる
+- 重すぎる話、説教は禁止
+
+昼投稿:
+- 読者心理は疲れ、SNS逃避、共感したい、少し笑いたい
+- リアル、クスッと感、あるある、小さな学びを入れる
+- 長すぎる文章、ポエムだけは禁止
+
+夜投稿:
+- 読者心理は孤独、将来不安、人生を考える、感情が動きやすい
+- 余韻、人生感、本音、静かな希望を入れる
+- 浅い内容、テンプレ感は禁止
 
 絶対ルール:
 - 入力メモの主題を必ず入れる
@@ -206,6 +239,25 @@ salaらしさ強度: ${styleLabel}
 - 成功者っぽくしない
 - ただの日記で終わらせず、共感・気づき・小さな行動提案のどれかを入れる
 - コメントしたくなる問いを入れる
+- 朝・昼・夜で同じ導入、同じ締め方、同じ言い換えは禁止
+- noteへ直接誘導しすぎず、続きを読みたくなる余白を残す
+
+投稿構造:
+- 1行目フック
+- 共感ポイント
+- 感情の動き
+- 小さな気づき
+- 余白
+- コメントしたくなる一文
+- noteにつながる余韻
+
+生成前の自己チェック:
+- これは日記になっていないか
+- 読者は知りたかったと思うか
+- 感情が動く場所があるか
+- 保存したくなるか
+- salaらしいか
+- noteを読みたくなるか
 
 出力はJSONだけ:
 {
@@ -295,6 +347,103 @@ function normalizePosts(value, mode) {
   return posts;
 }
 
+function getOpenAIConfig() {
+  const apiKey = (process.env.OPENAI_API_KEY || '').trim();
+  const model = (process.env.OPENAI_MODEL || '').trim() || 'gpt-4.1-mini';
+
+  return { apiKey, model };
+}
+
+function parseJsonObject(text) {
+  if (!text) return null;
+
+  try {
+    return JSON.parse(text);
+  } catch {
+    const match = text.match(/\{[\s\S]*\}/);
+    if (!match) return null;
+
+    try {
+      return JSON.parse(match[0]);
+    } catch {
+      return null;
+    }
+  }
+}
+
+async function callOpenAIForPosts({ mode, cleanInput, options }) {
+  const { apiKey, model } = getOpenAIConfig();
+
+  if (!apiKey || apiKey === 'sk-your-api-key-here') {
+    const error = new Error('API接続に失敗しました。環境変数を確認してください。');
+    error.status = 503;
+    error.details = 'OPENAI_API_KEY が未設定です。Vercel の Environment Variables に OPENAI_API_KEY を設定してください。';
+    throw error;
+  }
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 60_000);
+
+  try {
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      signal: controller.signal,
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model,
+        response_format: { type: 'json_object' },
+        messages: [
+          {
+            role: 'system',
+            content: '必ずJSONオブジェクトだけを返してください。説明文、Markdown、コードブロックは禁止です。',
+          },
+          {
+            role: 'user',
+            content: buildPrompt(mode, cleanInput.slice(0, 24000), options),
+          },
+        ],
+      }),
+    });
+
+    const rawText = await response.text();
+    const result = parseJsonObject(rawText);
+
+    if (!response.ok) {
+      const error = new Error('API接続に失敗しました。環境変数を確認してください。');
+      error.status = response.status || 502;
+      error.details = result?.error?.message || rawText || `OpenAI API returned ${response.status}`;
+      throw error;
+    }
+
+    const content = result?.choices?.[0]?.message?.content || '';
+    const parsedContent = parseJsonObject(content);
+    const posts = normalizePosts(parsedContent, mode);
+
+    if (!posts) {
+      const error = new Error('API接続に失敗しました。環境変数を確認してください。');
+      error.status = 502;
+      error.details = 'OpenAI API の生成結果を投稿JSONとして読み取れませんでした。';
+      throw error;
+    }
+
+    return { posts, model };
+  } catch (error) {
+    if (error.name === 'AbortError') {
+      const timeoutError = new Error('API接続に失敗しました。環境変数を確認してください。');
+      timeoutError.status = 504;
+      timeoutError.details = 'OpenAI API の応答がタイムアウトしました。';
+      throw timeoutError;
+    }
+
+    throw error;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 async function handleGenerateRequest(req, res) {
   try {
     const { mode = 'note', text = '', options = {} } = await readJsonBody(req);
@@ -305,45 +454,17 @@ async function handleGenerateRequest(req, res) {
       return;
     }
 
-    if (!process.env.OPENAI_API_KEY) {
-      jsonWithCors(req, res, 503, { error: 'OPENAI_API_KEYが未設定です。.envまたはデプロイ先の環境変数に設定してください。' });
-      return;
-    }
-
-    const response = await fetch('https://api.openai.com/v1/responses', {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: process.env.OPENAI_MODEL || 'gpt-4.1-mini',
-        input: buildPrompt(mode, cleanInput.slice(0, 24000), options),
-        text: { format: { type: 'json_object' } },
-      }),
-    });
-
-    const result = await response.json();
-    if (!response.ok) {
-      jsonWithCors(req, res, response.status, { error: result.error?.message || '投稿生成に失敗しました。' });
-      return;
-    }
-
-    const outputText = result.output_text || result.output?.flatMap((item) => item.content || []).map((item) => item.text || '').join('');
-    const parsed = JSON.parse(outputText || '{}');
-    const posts = normalizePosts(parsed, mode);
-
-    if (!posts) {
-      jsonWithCors(req, res, 502, { error: '生成結果を読み取れませんでした。もう一度お試しください。' });
-      return;
-    }
-
-    jsonWithCors(req, res, 200, { posts });
+    const result = await callOpenAIForPosts({ mode, cleanInput, options });
+    jsonWithCors(req, res, 200, result);
   } catch (error) {
     const message = error.message === 'request_too_large'
       ? '入力が長すぎます。本文を少し短くしてください。'
-      : '投稿生成に失敗しました。';
-    jsonWithCors(req, res, 500, { error: message });
+      : error.message || 'API接続に失敗しました。環境変数を確認してください。';
+    const status = error.status || 500;
+    jsonWithCors(req, res, status, {
+      error: message,
+      details: error.details || 'OPENAI_API_KEY と OPENAI_MODEL を確認してください。',
+    });
   }
 }
 

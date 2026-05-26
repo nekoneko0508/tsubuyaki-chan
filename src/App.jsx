@@ -444,6 +444,8 @@ function buildEditorialMeta({ signals, text, type, mode, style }) {
       : '初心者でも試せた手順をnoteに残します。';
 
   return {
+    modeName: postModes[mode],
+    styleName: salaStyles[style],
     postTitle: style === 'heat' ? `${titleBase}：まだ途中だけど進む` : titleBase,
     hook: firstLine,
     commentPrompt: pickCommentPrompt(signals, mode),
@@ -451,6 +453,12 @@ function buildEditorialMeta({ signals, text, type, mode, style }) {
     hashtags: pickHashtags(signals, mode),
     qualityCheck: '共感・学び・1ミリ行動・note導線を確認済み',
   };
+}
+
+function styleLine(style) {
+  if (style === 'heat') return '悔しいけど、ここで止まりたくない。';
+  if (style === 'learning') return 'ここはあとで見返せるように、メモしておきたい。';
+  return 'まだ途中だけど、少しだけ見えてきた。';
 }
 
 function makePosts(noteText, options = {}) {
@@ -473,10 +481,10 @@ function makePosts(noteText, options = {}) {
   const heatLine = style === 'heat' ? '\n正直、ここはちゃんと伝えたい。' : '';
   const learningLine = style === 'learning' || mode === 'save' ? `\n\n気づきはこれ。\n${learning}` : '';
 
-  const posts = [
+  const empathyPosts = [
     {
       id: 'singleA',
-      title: mode === 'save' ? '① 保存重視投稿' : '① 共感重視投稿',
+      title: '① 共感重視投稿',
       text: fitThreadsLength(`「AI気になるけど、私にできるかな」って思ってた。
 
 夜11時、${singleSceneA}。
@@ -510,6 +518,85 @@ ${singleStepB}だけで止まった日もある。${learningLine || `\n\nでも�
 初心者でもできた手順をnoteに残します。`, 260),
     },
   ];
+
+  const savePosts = [
+    {
+      id: 'singleA',
+      title: '① 保存重視投稿',
+      text: fitThreadsLength(`保存用にメモ。
+AI初心者が最初にやることは、難しい設定じゃなかった。
+
+1. 面倒な作業を1つ書く
+2. どこで止まるか書く
+3. AIにそのまま聞く
+
+${styleLine(style)}
+
+AIで一番ラクにしたい仕事って何ですか？`, 300),
+    },
+    {
+      id: 'singleB',
+      title: '② HowTo投稿',
+      text: fitThreadsLength(`コードが分からなくても、AI社員づくりは始められる。
+
+今日やったのはこれだけ。
+・困っている作業を書く
+・AIに役割を渡す
+・返事を見て直す
+
+${learning}
+
+これ、気になる人います？`, 280),
+    },
+    {
+      id: 'noteIntro',
+      title: '③ note保存導線投稿',
+      text: fitThreadsLength(`エラーだらけだったけど、手順は少し見えてきた。
+
+初心者がつまずいた場所ほど、あとから誰かの助けになる気がする。
+
+今日の失敗と直し方は、noteに手順として残します。`, 250),
+    },
+  ];
+
+  const notePosts = [
+    {
+      id: 'singleA',
+      title: '① note導入投稿',
+      text: fitThreadsLength(`この話、たぶん同じところで止まる人がいる。
+
+${singleSceneA}。
+${singlePhraseA}
+
+できた話だけじゃなくて、
+止まった場所も残したい。
+
+この格闘記録はnoteにまとめます。`, 260),
+    },
+    {
+      id: 'singleB',
+      title: '② 続きが気になる投稿',
+      text: fitThreadsLength(`最初は本当に、異次元の話だった。
+
+AI社員とか、DXとか、聞くだけで遠かった。
+でも${singleStepB}ところから少し変わった。
+
+点が線になる前のぐちゃぐちゃも、noteに残します。`, 260),
+    },
+    {
+      id: 'noteIntro',
+      title: '③ note誘導重視投稿',
+      text: fitThreadsLength(`${noteScene}。
+
+昔の私なら、ここで閉じてたと思う。
+でも今日は、失敗したところまで書いた。
+
+初心者でもできた手順と、途中で止まった場所。
+noteに残します。`, 250),
+    },
+  ];
+
+  const posts = mode === 'save' ? savePosts : mode === 'note' ? notePosts : empathyPosts;
 
   return posts.map((post) => ({
     ...post,
@@ -556,7 +643,15 @@ function buildThemeLine(theme) {
   return theme.raw;
 }
 
-function makeDailyPosts(memoText) {
+function buildDailyQualityCheck(theme, timeName) {
+  const subject = theme.hasAiWorker ? 'AI社員とプロジェクトを動かした時間' : theme.first;
+  const readerNeed = theme.hasAi ? 'AI初心者でも、自分の仕事に置き換えて考えられる' : '完璧じゃない日でも、小さな前進を見つけられる';
+  return `${timeName}の読者心理に合わせて、主題「${subject}」を残しました。共感・感情の動き・小さな気づき・コメントしたくなる余白・noteにつながる余韻を確認済み。${readerNeed}内容です。`;
+}
+
+function makeDailyPosts(memoText, options = {}) {
+  const mode = options.postMode || 'empathy';
+  const style = options.salaStyle || 'natural';
   const theme = extractMemoTheme(memoText);
   const themeLine = buildThemeLine(theme);
   const timeLine = theme.hasEvening ? '気づいたら夕方6時だった' : theme.first;
@@ -565,53 +660,184 @@ function makeDailyPosts(memoText) {
     : theme.hasTimeMelt
       ? '仕事なのか遊びなのか、もうわからない'
       : 'ちゃんとしてるのかは、よくわからない';
+  const styleExtra = style === 'heat'
+    ? 'まだうまくできてない。でも、ここで終わりにしたくない。'
+    : style === 'learning'
+      ? '今日の学びは、夢中になる前に終わり時間も決めておくこと。'
+      : '完璧じゃないけど、昨日より少しだけ進んだ気がする。';
 
-  const posts = [
+  const empathyPosts = [
     {
       id: 'morning',
       title: '① 朝の投稿',
-      text: fitThreadsLength(`昨日、${themeLine}。
+      text: fitThreadsLength(`朝から少し焦ってる人へ。
 
+昨日は、${themeLine}。
 ${timeLine}。
 
-今日もやりすぎ注意で、
-でも少しだけ進めたい。`, 220),
-      shortText: fitThreadsLength(`昨日、${themeLine}。\n今日もやりすぎ注意。`),
+40代からの更新って、
+大きく変わるより先に、
+気づいたら夢中になってた、が先に来るのかもしれない。
+
+今日はやりすぎ注意で、少しだけ。
+同じ人います？`, 320),
+      shortText: fitThreadsLength(`昨日、${themeLine}。\n今日はやりすぎ注意で、少しだけ。`),
     },
     {
       id: 'noon',
       title: '② 昼の投稿',
-      text: fitThreadsLength(`${themeLine}。
+      text: fitThreadsLength(`昼にスマホ見ながら思った。
 
-${timeLine}。
+${themeLine}。
 
-${feelingLine}。笑`, 220),
-      shortText: fitThreadsLength(`${themeLine}。\n${feelingLine}。笑`),
+${timeLine}って、なかなかの溶け方。
+
+仕事なのか遊びなのか、${feelingLine}。
+でも、夢中になれる作業があるって、
+ちょっと救いでもある。
+
+AIに任せたい仕事、あります？`, 300),
+      shortText: fitThreadsLength(`${themeLine}。\n${feelingLine}。\nAIに任せたい仕事、あります？`),
     },
     {
       id: 'night',
       title: '③ 夜の投稿',
-      text: fitThreadsLength(`${timeLine}。
+      text: fitThreadsLength(`夜になると、少し本音が出る。
 
 ${themeLine}。
+${timeLine}。
 
-疲れたけど、
-ちょっと楽しかった。
+疲れた。
+でも、ちょっと楽しかった。
 
-こういう夢中になれる時間があるなら、
-まだ人生おもしろいかもしれない。`, 220),
-      shortText: fitThreadsLength(`${timeLine}。\n${themeLine}。\nちょっと楽しかった。`),
+46歳、まだ人生を更新してる途中。
+この感じ、どこかに残しておきたい。
+
+あなたにも、時間が溶けるほど夢中になることありますか？`, 340),
+      shortText: fitThreadsLength(`${timeLine}。\n${themeLine}。\n疲れたけど、ちょっと楽しかった。`),
     },
   ];
 
+  const savePosts = [
+    {
+      id: 'morning',
+      title: '① 朝の保存投稿',
+      text: fitThreadsLength(`朝の保存メモ。
+昨日の主題はこれ。
+
+${themeLine}。
+
+気づきは3つ。
+・夢中になると時間は簡単に溶ける
+・AI社員は遊び半分でも育つ
+・だから終わり時間を先に決める
+
+${styleExtra}
+
+これ、保存しておきたい人います？`, 340),
+      shortText: fitThreadsLength(`昨日の学び。\n${themeLine}。\n終わり時間も決める。`),
+    },
+    {
+      id: 'noon',
+      title: '② 昼の学び投稿',
+      text: fitThreadsLength(`昼の自分にツッコミ。
+
+${themeLine}。
+
+${timeLine}。
+
+学びは、楽しい作業ほど止めどきが難しいこと。
+あと、仕事なのか遊びなのか分からない時ほど、
+あとで価値になるメモが残る。
+
+これ、同じ人います？`, 270),
+      shortText: fitThreadsLength(`${themeLine}。\n楽しい作業ほど止めどきが難しい。`),
+    },
+    {
+      id: 'night',
+      title: '③ 夜の振り返り投稿',
+      text: fitThreadsLength(`夜の振り返り。
+
+${timeLine}。
+
+${themeLine}。
+
+今日の学び。
+夢中になれることは才能かもしれない。
+でも、続けるなら休む設計も必要。
+
+${styleExtra}
+
+こういう小さな記録、あとで本の種になる気がしてる。`, 340),
+      shortText: fitThreadsLength(`${timeLine}。\n夢中になれた。\n次は終わる時間も決める。`),
+    },
+  ];
+
+  const notePosts = [
+    {
+      id: 'morning',
+      title: '① 朝のnote導線投稿',
+      text: fitThreadsLength(`朝、昨日のことを思い出してる。
+
+${themeLine}。
+${timeLine}。
+
+この「時間が溶ける感じ」、
+ただの作業記録じゃなくて、
+46歳から人生を更新している途中の記録かもしれない。
+
+この続き、ちゃんと文章にして残したい。`, 320),
+      shortText: fitThreadsLength(`昨日、${themeLine}。\nこの続きはnoteに残したい。`),
+    },
+    {
+      id: 'noon',
+      title: '② 昼の予告投稿',
+      text: fitThreadsLength(`昼にふと笑った。
+
+${themeLine}。
+
+仕事なのか遊びなのか、分からなくなる瞬間がある。
+でも、そこに次のテーマが隠れてる気もする。
+
+AI社員との格闘記録、
+失敗したところから残したら、誰かの近道になるかもしれない。`, 320),
+      shortText: fitThreadsLength(`${themeLine}。\nAI社員との格闘記録、noteにまとめます。`),
+    },
+    {
+      id: 'night',
+      title: '③ 夜のnote誘導投稿',
+      text: fitThreadsLength(`夜、少し静かになってから考えた。
+
+${timeLine}。
+
+${themeLine}。
+
+疲れたけど、ちょっと楽しかった。
+この感覚を忘れないうちに残したい。
+
+うまくいった話より、
+途中で迷ったところの方が、
+たぶん誰かの読みたいところ。`, 340),
+      shortText: fitThreadsLength(`${timeLine}。\n${themeLine}。\nnoteに残しておきます。`),
+    },
+  ];
+
+  const posts = mode === 'save' ? savePosts : mode === 'note' ? notePosts : empathyPosts;
+
   return posts.map((post) => ({
     ...post,
-    postTitle: `${post.title}のタイトル案`,
+    modeName: postModes[mode],
+    styleName: salaStyles[style],
+    postTitle: post.id === 'morning'
+      ? '今日を少しラクに始める投稿'
+      : post.id === 'noon'
+        ? '昼のあるあるから学びにつなげる投稿'
+        : '夜の本音からnoteへ余韻を残す投稿',
     hook: trimPost(post.text).split('\n').find(Boolean) || '',
     commentPrompt: theme.hasAi ? 'AIで一番ラクにしたい仕事って何ですか？' : '今日、小さく進めたいことありますか？',
-    noteLead: theme.hasAi ? 'AI社員を育てる過程をnoteで書いていきます。' : 'この小さな更新もnoteに残していきます。',
+    noteLead: theme.hasAi ? 'AI社員との格闘記録を、失敗したところからnoteに残します。' : 'この小さな更新も、あとで読み返せるようにnoteに残します。',
     hashtags: theme.hasAi ? ['#AI初心者', '#AI社員', '#salaの学び直し'] : ['#40代からの学び直し', '#つぶやきちゃん'],
-    qualityCheck: '入力メモの主題・共感・小さな行動を確認済み',
+    qualityCheck: buildDailyQualityCheck(theme, post.id === 'morning' ? '朝' : post.id === 'noon' ? '昼' : '夜'),
   }));
 }
 
@@ -656,10 +882,20 @@ export default function App() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ mode, text, options }),
     });
-    const result = await response.json();
+    const rawText = await response.text();
+    let result = {};
+
+    if (rawText) {
+      try {
+        result = JSON.parse(rawText);
+      } catch {
+        throw new Error('API接続に失敗しました。環境変数を確認してください。');
+      }
+    }
 
     if (!response.ok || !Array.isArray(result.posts)) {
-      throw new Error(result.error || '投稿生成に失敗しました。');
+      const detail = result.details ? `\n${result.details}` : '';
+      throw new Error(`${result.error || 'API接続に失敗しました。環境変数を確認してください。'}${detail}`);
     }
 
     return result.posts;
@@ -680,8 +916,7 @@ export default function App() {
       setPosts(generatedPosts);
       setStatus('本文をもとに3案を生成しました。');
     } catch (generationError) {
-      setPosts(makePosts(noteText, { postMode, salaStyle }));
-      setStatus(`サーバー生成は使えませんでした。ローカル生成で3案を作りました。${generationError.message}`);
+      setError(generationError.message || 'API接続に失敗しました。環境変数を確認してください。');
     } finally {
       setLoading('');
     }
@@ -702,8 +937,7 @@ export default function App() {
       setDailyPosts(generatedPosts);
       setStatus('朝・昼・夜の投稿を生成しました。');
     } catch (generationError) {
-      setDailyPosts(makeDailyPosts(memoText));
-      setStatus(`サーバー生成は使えませんでした。ローカル生成で朝・昼・夜を作りました。${generationError.message}`);
+      setError(generationError.message || 'API接続に失敗しました。環境変数を確認してください。');
     } finally {
       setLoading('');
     }
@@ -781,7 +1015,36 @@ export default function App() {
       return;
     }
 
+    if (activeTab === 'daily' && memoText.trim()) {
+      setDailyPosts(makeDailyPosts(memoText, { postMode, salaStyle: 'heat' }));
+      setStatus('ローカル生成で、salaさんの熱量を少し強めました。');
+      return;
+    }
+
     setStatus('salaらしさを「熱量強め」にしました。次の生成から反映されます。');
+  }
+
+  function refreshLocalPreview(nextMode = postMode, nextStyle = salaStyle) {
+    if (activeTab === 'note' && noteText.trim()) {
+      setPosts(makePosts(noteText, { postMode: nextMode, salaStyle: nextStyle }));
+      setStatus(`${postModes[nextMode]} / ${salaStyles[nextStyle]} でプレビューを更新しました。`);
+      return;
+    }
+
+    if (activeTab === 'daily' && memoText.trim()) {
+      setDailyPosts(makeDailyPosts(memoText, { postMode: nextMode, salaStyle: nextStyle }));
+      setStatus(`${postModes[nextMode]} / ${salaStyles[nextStyle]} でプレビューを更新しました。`);
+    }
+  }
+
+  function handlePostModeChange(value) {
+    setPostMode(value);
+    refreshLocalPreview(value, salaStyle);
+  }
+
+  function handleSalaStyleChange(value) {
+    setSalaStyle(value);
+    refreshLocalPreview(postMode, value);
   }
 
   return (
@@ -810,7 +1073,7 @@ export default function App() {
               <div className="editorControls" aria-label="編集設定">
                 <div className="fieldGroup compact">
                   <label htmlFor="postMode">投稿モード</label>
-                  <select id="postMode" value={postMode} onChange={(event) => setPostMode(event.target.value)}>
+                  <select id="postMode" value={postMode} onChange={(event) => handlePostModeChange(event.target.value)}>
                     {Object.entries(postModes).map(([value, label]) => (
                       <option value={value} key={value}>
                         {label}
@@ -821,7 +1084,7 @@ export default function App() {
 
                 <div className="fieldGroup compact">
                   <label htmlFor="salaStyle">salaらしさ強度</label>
-                  <select id="salaStyle" value={salaStyle} onChange={(event) => setSalaStyle(event.target.value)}>
+                  <select id="salaStyle" value={salaStyle} onChange={(event) => handleSalaStyleChange(event.target.value)}>
                     {Object.entries(salaStyles).map(([value, label]) => (
                       <option value={value} key={value}>
                         {label}
@@ -897,7 +1160,7 @@ export default function App() {
               <div className="editorControls" aria-label="編集設定">
                 <div className="fieldGroup compact">
                   <label htmlFor="dailyPostMode">投稿モード</label>
-                  <select id="dailyPostMode" value={postMode} onChange={(event) => setPostMode(event.target.value)}>
+                  <select id="dailyPostMode" value={postMode} onChange={(event) => handlePostModeChange(event.target.value)}>
                     {Object.entries(postModes).map(([value, label]) => (
                       <option value={value} key={value}>
                         {label}
@@ -908,7 +1171,7 @@ export default function App() {
 
                 <div className="fieldGroup compact">
                   <label htmlFor="dailySalaStyle">salaらしさ強度</label>
-                  <select id="dailySalaStyle" value={salaStyle} onChange={(event) => setSalaStyle(event.target.value)}>
+                  <select id="dailySalaStyle" value={salaStyle} onChange={(event) => handleSalaStyleChange(event.target.value)}>
                     {Object.entries(salaStyles).map(([value, label]) => (
                       <option value={value} key={value}>
                         {label}
@@ -961,6 +1224,12 @@ function PostGrid({ posts, copiedId, onCopy, showShort = false }) {
               {copiedId === post.id ? 'コピー済み' : 'コピー'}
             </button>
           </div>
+          {(post.modeName || post.styleName) && (
+            <div className="modeBadge">
+              {post.modeName && <span>{post.modeName}</span>}
+              {post.styleName && <span>{post.styleName}</span>}
+            </div>
+          )}
           <p>{post.text}</p>
           <div className="postMeta">
             {post.postTitle && (
